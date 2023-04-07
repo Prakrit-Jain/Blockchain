@@ -1,0 +1,3 @@
+# ERC20 Token Implementation
+
+ERC-20 is the technical standard for building fungible tokens created using the Ethereum blockchain.ERC-20 allows developers to create smart-contract-enabled tokens that can be used with other products and services. These tokens are a representation of an asset, right, ownership, access, cryptocurrency, or anything else that is not unique in and of itself but can be transferred.
