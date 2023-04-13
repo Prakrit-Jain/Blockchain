@@ -34,7 +34,7 @@ contract ERC20 is IERC20 {
      * @notice owner address who owns the contract
      * @dev Address will be assigned through constructor during deploymnet time
      */
-    address private owner;
+    address private _owner;
 
     /**
      * @notice provides the amount of tokens , the account owned.
@@ -57,7 +57,7 @@ contract ERC20 is IERC20 {
     constructor(string memory _name, string memory _symbol, uint256 amount) {
         name = _name;
         symbol = _symbol;
-        owner = msg.sender;
+        _owner = msg.sender;
         _mint(amount);
     }
 
@@ -65,7 +65,7 @@ contract ERC20 is IERC20 {
      * @dev Modifier for checking the only owner address i.e who have deployed the contract.
      */
     modifier onlyOwner() {
-        require(msg.sender == owner, "Not a owner");
+        require(msg.sender == _owner, "Not a owner");
         _;
     }
 
@@ -79,9 +79,10 @@ contract ERC20 is IERC20 {
      */
     function transfer(address to, uint256 amount) external returns (bool) {
         require(to != address(0), "Transfer to Zero Address");
-        require(balanceOf[msg.sender] >= amount, "No Sufficient Balance");
+        uint256 _balance = balanceOf[msg.sender];
+        require(_balance >= amount, "No Sufficient Balance");
+        balanceOf[msg.sender] =_balance - amount;
         balanceOf[to] += amount;
-        balanceOf[msg.sender] -= amount;
         emit Transfer(msg.sender, to, amount);
         return true;
     }
@@ -121,10 +122,13 @@ contract ERC20 is IERC20 {
         require(from != to, "Same address Transfers");
         uint256 _allownace = allowance[from][msg.sender];
         require(_allownace >= amount, "Not Enough Allowance");
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount;
-        allowance[from][msg.sender] = _allownace - amount;
-        emit Approval(from, msg.sender, amount);
+        require(balanceOf[from] >= amount, "Not enough balance in owners account");
+        if ( _allownace != type(uint256).max) {
+            balanceOf[from] -= amount;
+            balanceOf[to] += amount;
+            allowance[from][msg.sender] = _allownace - amount;
+            emit Approval(from, msg.sender, _allownace - amount);
+        }   
         emit Transfer(from, to, amount);
         return true;
     }
@@ -132,7 +136,7 @@ contract ERC20 is IERC20 {
     /**
      * @dev This function is private and can only be called by the contract itself.
      * @param amount The amount of tokens to be mint.
-     * @return `true` if the minting was successful.
+     * @return bool `true` if the minting was successful.
      */
     function _mint(uint256 amount) private returns (bool) {
         balanceOf[msg.sender] += amount;
@@ -145,10 +149,35 @@ contract ERC20 is IERC20 {
      * @notice Mints new tokens and adds them to the balance of the contract owner's account.
      * @dev Reverts if the caller is not the contract owner.
      * @param amount The amount of tokens to mint.
-     * @return `true` if the minting was successful.
+     * @return bool `true` if the minting was successful.
      */
     function mint(uint256 amount) external onlyOwner returns (bool) {
         _mint(amount);
+        return true;
+    }
+
+    /**
+     * @notice Burns a specified amount of tokens from the owner's balance.
+     * @dev Reverts if the amount exceeds msg.sender balance is not the contract owner
+     * @param amount The amount of tokens to be burned.
+     * @return bool A boolean indicating whether the burn operation was successful.
+     */
+    function burn(uint256 amount) external onlyOwner returns (bool) {
+        require(balanceOf[msg.sender] >= amount, "Burn amount exceeds balance");
+        balanceOf[msg.sender] -= amount;
+        totalSupply -= amount;
+        emit Transfer(msg.sender, address(0), amount);
+        return true;
+    }
+
+    /**
+     *@dev Allows the current owner to temporarily transfer ownership to a new address.
+     *@param tempOwner The address to which ownership will be temporarily transferred.
+     *@return bool Returns a boolean value indicating whether the operation succeeded or not.
+     */
+    function temporaryOwner(address tempOwner) external onlyOwner returns (bool) {
+        require(tempOwner != address(0), "Ownership can't be transfered to zero address");
+        _owner = tempOwner;
         return true;
     }
 }
