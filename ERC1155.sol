@@ -2,6 +2,7 @@
 pragma solidity =0.8.18;
 
 import "./IERC115.sol";
+import "./IERC1155Receiver.sol";
 
 contract ERC1155 is IERC1155 {
 
@@ -15,6 +16,7 @@ contract ERC1155 is IERC1155 {
         require(fromBalance >= _value, "insufficient balance for transfer");
         _balance[_from][_id] -= _value;
         _balance[_to][_id] += _value;
+        require(_checkSafeTransfer(msg.sender, _from, _to, _id, _value, _data), "transfer to non ERC1155Receiver implementer");
         emit TransferSingle(msg.sender, _from, _to, _id, _value);  
     }
 
@@ -30,6 +32,7 @@ contract ERC1155 is IERC1155 {
             _balance[_from][id] -= value;
             _balance[_to][id] += value;
         }
+        require(_checkSafeTransfer(msg.sender, _from, _to, _ids, _values, _data), "transfer to non ERC1155Receiver implementer");
         emit TransferBatch(msg.sender, _from, _to, _ids, _values);
     }
 
@@ -55,6 +58,62 @@ contract ERC1155 is IERC1155 {
 
     function isApprovedForAll(address _owner, address _operator) external view returns (bool) {
         return  _approveAll[_owner][_operator];
+    }
+
+    function isContract(address addr) private view returns(bool) {
+        uint size;
+        assembly {
+            size := extcodesize(addr)
+        }
+        return size > 0;
+    }
+
+    function _checkSafeTransfer(
+        address operator,
+        address from,
+        address to,
+        uint256 id,
+        uint256 amount,
+        bytes memory data
+    ) private {
+        if (isContract(to)) {
+            try IERC1155Receiver(to).onERC1155Received(operator, from, id, amount, data) returns (bytes4 response) {
+                if (response != IERC1155Receiver.onERC1155Received.selector) {
+                    revert("ERC1155: ERC1155Receiver rejected tokens");
+                }
+            } catch Error(string memory reason) {
+                revert(reason);
+            } catch {
+                revert("ERC1155: transfer to non-ERC1155Receiver implementer");
+            }
+        }
+    }
+
+    function _checkSafeBatchTransfer(
+        address operator,
+        address from,
+        address to,
+        uint256[] memory ids,
+        uint256[] memory amounts,
+        bytes memory data
+    ) private {
+        if (isContract(to)) {
+            try IERC1155Receiver(to).onERC1155BatchReceived(
+                operator,
+                from,
+                ids,
+                amounts,
+                data    
+            ) returns (bytes4 response) {
+                if (response != IERC1155Receiver.onERC1155BatchReceived.selector) {
+                    revert("ERC1155: ERC1155Receiver rejected tokens");
+                }
+            } catch Error(string memory reason) {
+                revert(reason);
+            } catch {
+                revert("transfer to non-ERC1155Receiver implementer");
+            }
+        }
     }
     
 }
