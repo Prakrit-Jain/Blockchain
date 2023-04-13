@@ -2,7 +2,7 @@
 pragma solidity =0.8.18;
 
 import "./IERC721.sol";
-import "./ERC721TokenReceiver.sol";
+import "./IERC721Receiver.sol";
 
 contract ERC721 is IERC721 {
 
@@ -27,14 +27,11 @@ contract ERC721 is IERC721 {
         require(ownerOf[_tokenId] == _from, "Owner not verified");
         require(_to != address(0), "to cannot be zero address");
         require(_from == msg.sender || _approveAll[_from][msg.sender] == true || _approve[_tokenId] == _from, "Not authorized to transfer");
-
         delete _approve[_tokenId];
-        require( isContract(_to) == true, "to is not a smart contract");
         balanceOf[_from]--;
         balanceOf[_to]++;
-        ownerOf[_tokenId] = _to; 
-        bytes4 _data = onERC721Received(_to, _from, _tokenId, data);
-        require (_data == bytes4(keccak256("onERC721Received(address,address,uint256,bytes)")), "reverts due to not a magic value");
+        ownerOf[_tokenId] = _to;
+        require(_checkOnERC721Received(_from, _to, _tokenId, data), "transfer to non ERC721Receiver implementer"); 
         emit Transfer(_from, _to, _tokenId);
 
     }
@@ -43,11 +40,11 @@ contract ERC721 is IERC721 {
         require(ownerOf[_tokenId] == _from, "Owner not verified");
         require(_to != address(0), "to cannot be zero address");
         require(_from == msg.sender || _approveAll[_from][msg.sender] == true || _approve[_tokenId] == _from, "Not authorized to transfer");
-        require( isContract(_to) == true, "to is not a smart contract");
         delete _approve[_tokenId];
         balanceOf[_from]--;
         balanceOf[_to]++;
         ownerOf[_tokenId] = _to;
+        require(_checkOnERC721Received(_from, _to, _tokenId, ""), "transfer to non ERC721Receiver implementer"); 
         emit Transfer(_from, _to, _tokenId);  
     }
 
@@ -91,8 +88,27 @@ contract ERC721 is IERC721 {
         return size > 0;
     }
 
-    function onERC721Received(address _operator, address _from, uint256 _tokenId, bytes calldata _data) private pure returns(bytes4) {
-        return bytes4(keccak256("onERC721Received(address,address,uint256,bytes)"));
+    function _checkOnERC721Received(
+        address from,
+        address to,
+        uint256 tokenId,
+        bytes memory data
+    ) private returns (bool) {
+        if (isContract(to)) {
+            try IERC721Receiver(to).onERC721Received(msg.sender, from, tokenId, data) returns (bytes4 retval) {
+                return retval == IERC721Receiver.onERC721Received.selector;
+            } catch (bytes memory reason) {
+                if (reason.length == 0) {
+                    revert("transfer to non ERC721Receiver implementer");
+                } else {
+                    assembly {
+                        revert(add(32, reason), mload(reason))
+                    }
+                }
+            }
+        } else {
+            return true;
+        }
     }
 
 }
